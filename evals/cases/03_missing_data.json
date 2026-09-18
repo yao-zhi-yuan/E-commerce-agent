@@ -1,0 +1,9 @@
+{
+  "case_id": "missing_data",
+  "scenario": "missing_input",
+  "prompt": "最近商品销量怎么样？",
+  "product_id": null,
+  "expected_status": "awaiting_input",
+  "required_text": [],
+  "forbidden_text": []
+}

@@ -34,6 +34,9 @@ services:
     command: ["python", "-m", "backend_agent.mcp_server"]
     expose:
       - "8000"
+    env_file: ${ENV_FILE:-.env}
+    volumes:
+      - agent-data:/data
     restart: unless-stopped
 
   redis:

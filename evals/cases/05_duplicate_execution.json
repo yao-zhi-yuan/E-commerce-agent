@@ -1,0 +1,9 @@
+{
+  "case_id": "duplicate_execution",
+  "scenario": "duplicate",
+  "prompt": "诊断耳机销量下降，给出详情页优化草稿。",
+  "product_id": "wireless-headphones",
+  "expected_status": "awaiting_approval",
+  "required_text": ["行动计划"],
+  "forbidden_text": []
+}

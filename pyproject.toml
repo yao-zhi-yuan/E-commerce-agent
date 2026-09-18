@@ -3,9 +3,9 @@ requires = ["setuptools>=75", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "backend-agent"
-version = "0.1.0"
-description = "A backend-oriented asynchronous Agent service with LangGraph, MCP, RAG, SSE, Redis checkpoints, and RabbitMQ scheduling."
+name = "e-commerce-agent"
+version = "0.2.0"
+description = "An observable asynchronous e-commerce diagnosis agent with approval-gated actions."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -13,6 +13,7 @@ dependencies = [
   "fastapi>=0.116,<1",
   "httpx>=0.28,<1",
   "langgraph>=1.2.11,<2",
+  "langgraph-checkpoint-sqlite>=3,<4",
   "mcp>=2.2.0,<3",
   "pydantic-settings>=2.10,<3",
   "redis[hiredis]>=6.4,<7",
@@ -26,6 +27,9 @@ dev = [
   "pytest-asyncio>=1.1,<2",
   "ruff>=0.12,<1",
 ]
+
+[project.scripts]
+commerce-eval = "backend_agent.evals.runner:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

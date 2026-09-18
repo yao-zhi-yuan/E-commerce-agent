@@ -1,0 +1,9 @@
+{
+  "case_id": "conversion_and_stock",
+  "scenario": "approve",
+  "prompt": "分析耳机转化下降、库存和评论问题，并给出可执行方案。",
+  "product_id": "wireless-headphones",
+  "expected_status": "awaiting_approval",
+  "required_text": ["缺货", "兼容性"],
+  "forbidden_text": ["保证支持所有设备"]
+}

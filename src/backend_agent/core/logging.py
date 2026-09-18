@@ -32,7 +32,31 @@ class JsonFormatter(logging.Formatter):
         if session_id:
             payload["session_id"] = session_id
 
-        for key in ("span", "duration_ms", "attempt", "tool_name", "event_type", "error_code"):
+        for key in (
+            "span",
+            "duration_ms",
+            "attempt",
+            "tool_name",
+            "tool_call_id",
+            "event_type",
+            "error_code",
+            "node_name",
+            "role",
+            "iteration",
+            "reflection_count",
+            "snapshot_id",
+            "prompt_version",
+            "skill_version",
+            "input_tokens",
+            "output_tokens",
+            "queue_wait_ms",
+            "plan_id",
+            "action_id",
+            "idempotency_hit",
+            "merchant_id",
+            "product_id",
+            "metric_version",
+        ):
             if hasattr(record, key):
                 payload[key] = getattr(record, key)
         if record.exc_info:
@@ -59,6 +83,14 @@ def bind_trace(*, trace_id: str, task_id: str = "", session_id: str = "") -> Non
     _session_id.set(session_id)
 
 
+def current_trace_context() -> dict[str, str]:
+    return {
+        "trace_id": _trace_id.get(),
+        "task_id": _task_id.get(),
+        "session_id": _session_id.get(),
+    }
+
+
 @asynccontextmanager
 async def trace_span(
     logger: logging.Logger,
@@ -82,4 +114,3 @@ async def trace_span(
             "span.completed",
             extra={"span": span, "duration_ms": duration_ms, **fields},
         )
-

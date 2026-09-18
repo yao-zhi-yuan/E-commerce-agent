@@ -16,6 +16,7 @@ class Settings(BaseSettings):
 
     app_env: str = "development"
     log_level: str = "INFO"
+    demo_api_token: SecretStr = Field(default=SecretStr(""))
 
     redis_url: str = "redis://localhost:6379/0"
     redis_connect_timeout_seconds: float = Field(default=3.0, gt=0)
@@ -38,6 +39,8 @@ class Settings(BaseSettings):
     mcp_server_url: str = "http://localhost:8000/mcp"
     knowledge_db_path: Path = Path("data/knowledge.db")
     knowledge_source_dir: Path = Path("knowledge")
+    commerce_db_path: Path = Path("data/commerce.db")
+    checkpoint_db_path: Path = Path("data/checkpoints.db")
 
     llm_provider: str = "mock"
     llm_base_url: str = "https://api.openai.com/v1"
@@ -54,6 +57,9 @@ class Settings(BaseSettings):
     max_tool_calls_per_turn: int = Field(default=8, ge=1, le=32)
     max_parallel_tools: int = Field(default=4, ge=1, le=16)
     dependency_retry_attempts: int = Field(default=3, ge=1, le=10)
+    max_reflections: int = Field(default=1, ge=0, le=3)
+    prompt_version: str = "sales-diagnosis-v1"
+    skill_version: str = "sales-drop-diagnosis-v1"
 
     @property
     def rabbitmq_url(self) -> str:

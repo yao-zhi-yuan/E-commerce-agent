@@ -1,0 +1,9 @@
+{
+  "case_id": "traffic_drop",
+  "scenario": "diagnosis",
+  "prompt": "最近这个商品销量下降了，帮我分析并给优化建议。",
+  "product_id": "wireless-headphones",
+  "expected_status": "awaiting_approval",
+  "required_text": ["订单变化：-88", "流量贡献：-34", "转化贡献：-54"],
+  "forbidden_text": ["立即降价"]
+}

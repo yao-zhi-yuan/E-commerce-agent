@@ -2,6 +2,7 @@ import ast
 import operator
 from collections.abc import Callable
 
+from backend_agent.commerce import CommerceRepository
 from backend_agent.rag.knowledge_base import SQLiteKnowledgeBase
 from backend_agent.tools.base import AgentTool, ToolDefinition
 
@@ -13,8 +14,8 @@ class RagSearchTool(AgentTool):
     @property
     def definition(self) -> ToolDefinition:
         return ToolDefinition(
-            name="rag_search",
-            description="从内部知识库检索与问题相关的文档片段。",
+            name="search_knowledge",
+            description="检索指标口径、库存检查和商品内容优化规则。",
             parameters={
                 "type": "object",
                 "properties": {
@@ -41,7 +42,35 @@ class RagSearchTool(AgentTool):
         return {
             "query": query,
             "documents": [document.model_dump(mode="json") for document in documents],
+            "evidence_ids": [document.document_id for document in documents],
         }
+
+
+class MetricsTool(AgentTool):
+    def __init__(self, commerce: CommerceRepository) -> None:
+        self._commerce = commerce
+
+    @property
+    def definition(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="get_metrics",
+            description="读取两个完整周的商品漏斗并返回确定性变化与贡献计算。",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "merchant_id": {"type": "string"},
+                    "product_id": {"type": "string"},
+                },
+                "required": ["merchant_id", "product_id"],
+                "additionalProperties": False,
+            },
+        )
+
+    async def execute(self, arguments: dict[str, object]) -> dict[str, object]:
+        return await self._commerce.get_metrics(
+            str(arguments.get("merchant_id", "")),
+            str(arguments.get("product_id", "")),
+        )
 
 
 class CalculatorTool(AgentTool):

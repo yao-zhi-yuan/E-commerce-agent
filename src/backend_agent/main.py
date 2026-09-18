@@ -11,6 +11,7 @@ from redis.asyncio import Redis
 
 from backend_agent.api.router import router
 from backend_agent.api.schemas import ErrorDetail, ErrorResponse
+from backend_agent.commerce import CommerceRepository
 from backend_agent.core.config import Settings, get_settings
 from backend_agent.core.logging import bind_trace, configure_logging, new_trace_id
 from backend_agent.errors import AppError
@@ -31,6 +32,7 @@ class AppContainer:
     store: RedisStore
     queue: RabbitTaskQueue
     knowledge_base: SQLiteKnowledgeBase
+    commerce: CommerceRepository
     task_service: TaskService
 
 
@@ -61,16 +63,24 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         settings.knowledge_db_path,
         settings.knowledge_source_dir,
     )
+    commerce = CommerceRepository(settings.commerce_db_path)
     await store.ping()
     await queue.connect()
     await knowledge_base.initialize()
-    task_service = TaskService(store=store, queue=queue, knowledge_base=knowledge_base)
+    await commerce.initialize()
+    task_service = TaskService(
+        store=store,
+        queue=queue,
+        knowledge_base=knowledge_base,
+        commerce=commerce,
+    )
     app.state.container = AppContainer(
         settings=settings,
         redis=redis,
         store=store,
         queue=queue,
         knowledge_base=knowledge_base,
+        commerce=commerce,
         task_service=task_service,
     )
     logger.info("api.started")
@@ -82,7 +92,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.info("api.stopped")
 
 
-app = FastAPI(title="Backend Agent", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="E-commerce Diagnosis Agent", version="0.2.0", lifespan=lifespan)
 app.include_router(router)
 
 

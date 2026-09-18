@@ -2,9 +2,11 @@ import asyncio
 import logging
 import signal
 
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from redis.asyncio import Redis
 
 from backend_agent.agent.graph import AgentOrchestrator
+from backend_agent.commerce import CommerceRepository
 from backend_agent.core.config import Settings, get_settings
 from backend_agent.core.logging import configure_logging
 from backend_agent.llm.client import MockModelClient, ModelClient, OpenAICompatibleModelClient
@@ -13,7 +15,7 @@ from backend_agent.rag.knowledge_base import SQLiteKnowledgeBase
 from backend_agent.repositories.redis_store import RedisStore
 from backend_agent.services.worker_service import WorkerService
 from backend_agent.tools.base import ToolRegistry
-from backend_agent.tools.builtin import CalculatorTool, RagSearchTool
+from backend_agent.tools.builtin import MetricsTool, RagSearchTool
 from backend_agent.tools.mcp import McpToolClient, build_mcp_tools
 
 
@@ -64,56 +66,65 @@ async def run_worker() -> None:
         settings.knowledge_db_path,
         settings.knowledge_source_dir,
     )
+    commerce = CommerceRepository(settings.commerce_db_path)
     model = build_model(settings)
     mcp_client = McpToolClient(
         settings.mcp_server_url,
         timeout_seconds=settings.tool_timeout_seconds,
         retry_attempts=settings.dependency_retry_attempts,
     )
-    tools = ToolRegistry(
-        [
-            RagSearchTool(knowledge_base),
-            CalculatorTool(),
-            *build_mcp_tools(mcp_client),
-        ]
-    )
-    orchestrator = AgentOrchestrator(
-        model=model,
-        tools=tools,
-        store=store,
-        model_timeout_seconds=settings.model_timeout_seconds,
-        tool_timeout_seconds=settings.tool_timeout_seconds,
-        max_iterations=settings.max_agent_iterations,
-        max_repeated_steps=settings.max_repeated_steps,
-        max_tool_calls_per_turn=settings.max_tool_calls_per_turn,
-        max_parallel_tools=settings.max_parallel_tools,
-    )
-    worker = WorkerService(
-        store=store,
-        queue=queue,
-        orchestrator=orchestrator,
-        task_timeout_seconds=settings.task_timeout_seconds,
-        max_task_attempts=settings.max_task_attempts,
-    )
-
     await store.ping()
     await knowledge_base.initialize()
+    await commerce.initialize()
     await queue.connect()
-    await queue.consume(worker.handle_message)
+    settings.checkpoint_db_path.parent.mkdir(parents=True, exist_ok=True)
+    async with AsyncSqliteSaver.from_conn_string(str(settings.checkpoint_db_path)) as checkpointer:
+        await checkpointer.setup()
+        tools = ToolRegistry(
+            [
+                MetricsTool(commerce),
+                RagSearchTool(knowledge_base),
+                *build_mcp_tools(mcp_client),
+            ]
+        )
+        orchestrator = AgentOrchestrator(
+            model=model,
+            tools=tools,
+            store=store,
+            commerce=commerce,
+            checkpointer=checkpointer,
+            model_timeout_seconds=settings.model_timeout_seconds,
+            tool_timeout_seconds=settings.tool_timeout_seconds,
+            max_iterations=settings.max_agent_iterations,
+            max_repeated_steps=settings.max_repeated_steps,
+            max_tool_calls_per_turn=settings.max_tool_calls_per_turn,
+            max_parallel_tools=settings.max_parallel_tools,
+            max_reflections=settings.max_reflections,
+            prompt_version=settings.prompt_version,
+            skill_version=settings.skill_version,
+        )
+        worker = WorkerService(
+            store=store,
+            queue=queue,
+            orchestrator=orchestrator,
+            task_timeout_seconds=settings.task_timeout_seconds,
+            max_task_attempts=settings.max_task_attempts,
+        )
+        await queue.consume(worker.handle_message)
 
-    stop_event = asyncio.Event()
-    loop = asyncio.get_running_loop()
-    for signum in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(signum, stop_event.set)
-    logger.info("worker.started")
-    try:
-        await stop_event.wait()
-    finally:
-        await queue.close()
-        await redis.aclose()
-        if isinstance(model, OpenAICompatibleModelClient):
-            await model.close()
-        logger.info("worker.stopped")
+        stop_event = asyncio.Event()
+        loop = asyncio.get_running_loop()
+        for signum in (signal.SIGINT, signal.SIGTERM):
+            loop.add_signal_handler(signum, stop_event.set)
+        logger.info("worker.started")
+        try:
+            await stop_event.wait()
+        finally:
+            await queue.close()
+            await redis.aclose()
+            if isinstance(model, OpenAICompatibleModelClient):
+                await model.close()
+            logger.info("worker.stopped")
 
 
 if __name__ == "__main__":

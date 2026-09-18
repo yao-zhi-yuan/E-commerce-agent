@@ -3,7 +3,7 @@ from typing import Generic, TypeVar
 
 from pydantic import BaseModel, Field
 
-from backend_agent.domain import TaskRecord, TaskStatus
+from backend_agent.domain import ApprovalDecision, TaskRecord, TaskStatus
 
 
 T = TypeVar("T")
@@ -29,6 +29,7 @@ class ErrorResponse(BaseModel):
 
 class CreateTaskRequest(BaseModel):
     prompt: str = Field(min_length=1, max_length=20_000)
+    product_id: str | None = Field(default=None, min_length=3, max_length=128)
     session_id: str | None = Field(
         default=None,
         min_length=16,
@@ -41,6 +42,8 @@ class CreateTaskData(BaseModel):
     task_id: str
     session_id: str
     trace_id: str
+    merchant_id: str
+    product_id: str | None
     status: TaskStatus
     created: bool
     events_path: str
@@ -50,9 +53,12 @@ class TaskStatusData(BaseModel):
     task_id: str
     session_id: str
     trace_id: str
+    merchant_id: str
+    product_id: str | None
     status: TaskStatus
     attempt: int
     result: str | None
+    interaction: dict[str, object] | None
     error_code: str | None
     error_message: str | None
     created_at: datetime
@@ -71,14 +77,50 @@ class ResumeTaskData(BaseModel):
     events_path: str
 
 
-class AddKnowledgeDocumentRequest(BaseModel):
-    title: str = Field(min_length=1, max_length=300)
-    content: str = Field(min_length=1, max_length=200_000)
-    metadata: dict[str, str] = Field(default_factory=dict)
+class SubmitInputRequest(BaseModel):
+    product_id: str = Field(min_length=3, max_length=128)
 
 
-class AddKnowledgeDocumentData(BaseModel):
-    document_id: str
+class SubmitInputData(BaseModel):
+    task_id: str
+    status: TaskStatus
+    trace_id: str
+    events_path: str
+
+
+class SubmitApprovalRequest(BaseModel):
+    plan_id: str = Field(min_length=8, max_length=128)
+    plan_version: int = Field(ge=1)
+    action_id: str = Field(min_length=1, max_length=128)
+    decision: ApprovalDecision
+
+
+class SubmitApprovalData(BaseModel):
+    task_id: str
+    approval_id: str
+    status: TaskStatus
+    trace_id: str
+    events_path: str
+
+
+class TraceEventData(BaseModel):
+    event_id: str
+    event_type: str
+    sequence_number: int
+    payload: dict[str, object]
+
+
+class TaskTraceData(BaseModel):
+    task_id: str
+    trace_id: str
+    status: TaskStatus
+    model_calls: int
+    tool_calls: int
+    retries: int
+    reflection_count: int
+    input_tokens: int | None
+    output_tokens: int | None
+    events: list[TraceEventData]
 
 
 class HealthData(BaseModel):

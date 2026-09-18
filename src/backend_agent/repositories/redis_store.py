@@ -1,14 +1,16 @@
 import hashlib
 import json
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime
 
 from redis.asyncio import Redis
 
-from backend_agent.domain import AgentCheckpoint, StreamEvent, TaskRecord, utc_now
+from backend_agent.domain import StreamEvent, TaskRecord, utc_now
+from backend_agent.core.logging import current_trace_context
 
 
 class RedisStore:
-    _prefix = "backend-agent:v1"
+    _prefix = "e-commerce-agent:v1"
 
     def __init__(
         self,
@@ -33,10 +35,6 @@ class RedisStore:
     def idempotency_key(cls, key: str) -> str:
         digest = hashlib.sha256(key.encode("utf-8")).hexdigest()
         return f"{cls._prefix}:idempotency:{digest}"
-
-    @classmethod
-    def checkpoint_key(cls, task_id: str) -> str:
-        return f"{cls._prefix}:task:{task_id}:checkpoint"
 
     @classmethod
     def conversation_key(cls, session_id: str) -> str:
@@ -115,17 +113,34 @@ class RedisStore:
             ex=self._task_ttl,
         )
 
-    async def save_checkpoint(self, checkpoint: AgentCheckpoint) -> None:
-        checkpoint.updated_at = utc_now()
-        await self._redis.set(
-            self.checkpoint_key(checkpoint.task_id),
-            checkpoint.model_dump_json(),
-            ex=self._task_ttl,
+    async def transition_task(
+        self,
+        task: TaskRecord,
+        *,
+        expected_status: str,
+    ) -> bool:
+        task.updated_at = utc_now()
+        script = """
+        local raw = redis.call('GET', KEYS[1])
+        if not raw then
+            return 0
+        end
+        local current = cjson.decode(raw)
+        if current['status'] ~= ARGV[1] then
+            return 0
+        end
+        redis.call('SET', KEYS[1], ARGV[2], 'EX', ARGV[3])
+        return 1
+        """
+        transitioned = await self._redis.eval(
+            script,
+            1,
+            self.task_key(task.task_id),
+            expected_status,
+            task.model_dump_json(),
+            self._task_ttl,
         )
-
-    async def get_checkpoint(self, task_id: str) -> AgentCheckpoint | None:
-        raw = await self._redis.get(self.checkpoint_key(task_id))
-        return AgentCheckpoint.model_validate_json(raw) if raw else None
+        return bool(int(transitioned))
 
     async def save_conversation(
         self,
@@ -175,10 +190,18 @@ class RedisStore:
         payload: dict[str, object],
     ) -> StreamEvent:
         sequence = await self._redis.incr(self.sequence_key(task_id))
+        trace_context = current_trace_context()
+        enriched_payload = {
+            "trace_id": trace_context["trace_id"],
+            "task_id": task_id,
+            "session_id": trace_context["session_id"],
+            "occurred_at": datetime.now(UTC).isoformat(),
+            **payload,
+        }
         data = {
             "event_type": event_type,
             "sequence_number": str(sequence),
-            "payload": json.dumps(payload, ensure_ascii=False, default=str),
+            "payload": json.dumps(enriched_payload, ensure_ascii=False, default=str),
         }
         event_id = await self._redis.xadd(
             self.event_key(task_id),
@@ -194,8 +217,12 @@ class RedisStore:
             event_id=str(event_id),
             event_type=event_type,
             sequence_number=int(sequence),
-            payload=payload,
+            payload=enriched_payload,
         )
+
+    async def list_events(self, task_id: str) -> list[StreamEvent]:
+        rows = await self._redis.xrange(self.event_key(task_id), min="-", max="+")
+        return [self._decode_event(str(event_id), fields) for event_id, fields in rows]
 
     async def iter_events(
         self,

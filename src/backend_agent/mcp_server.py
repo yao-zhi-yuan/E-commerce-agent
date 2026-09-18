@@ -1,51 +1,36 @@
-import hashlib
 import os
-from datetime import UTC, datetime
+from pathlib import Path
 
 from mcp.server import MCPServer
 
+from backend_agent.commerce import CommerceRepository
 
-mcp = MCPServer("backend-agent-operations")
+
+mcp = MCPServer("e-commerce-product-context")
 
 
-@mcp.tool()
-def get_service_health(service: str) -> dict[str, object]:
-    """返回演示服务的确定性健康状态与依赖状态。"""
-    normalized = service.strip().lower()
-    if not normalized:
-        raise ValueError("service 不能为空")
-    bucket = int(hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:2], 16)
-    status = "healthy" if bucket % 5 else "degraded"
-    return {
-        "service": normalized,
-        "status": status,
-        "checked_at": datetime.now(UTC).isoformat(),
-        "dependencies": {
-            "database": "healthy",
-            "cache": "healthy" if bucket % 3 else "degraded",
-            "downstream_rpc": "healthy" if bucket % 7 else "degraded",
-        },
-    }
+def _repository() -> CommerceRepository:
+    return CommerceRepository(Path(os.getenv("COMMERCE_DB_PATH", "data/commerce.db")))
 
 
 @mcp.tool()
-def get_incident_runbook(service: str) -> dict[str, object]:
-    """返回服务故障排查步骤。"""
-    normalized = service.strip().lower()
-    if not normalized:
-        raise ValueError("service 不能为空")
-    return {
-        "service": normalized,
-        "steps": [
-            "确认错误率、P99 延迟和影响范围",
-            "检查最近发布、配置变更与依赖健康度",
-            "按 trace_id 定位失败链路并核对超时预算",
-            "必要时执行限流、降级或回滚，并记录恢复时间",
-        ],
-    }
+def get_product_context(
+    merchant_id: str,
+    product_id: str,
+    sections: list[str] | None = None,
+) -> dict[str, object]:
+    """读取模拟商品的详情、库存、价格、评论和竞品快照。"""
+    if not merchant_id.strip() or not product_id.strip():
+        raise ValueError("merchant_id 和 product_id 不能为空")
+    allowed = {"product", "inventory", "price", "reviews", "competitors"}
+    selected = sections or sorted(allowed)
+    if not set(selected).issubset(allowed):
+        raise ValueError("sections 包含不支持的字段")
+    return _repository().get_product_context_sync(merchant_id, product_id, selected)
 
 
 if __name__ == "__main__":
+    _repository().initialize_sync()
     mcp.run(
         transport="streamable-http",
         host=os.getenv("MCP_HOST", "0.0.0.0"),

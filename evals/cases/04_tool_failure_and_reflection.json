@@ -1,0 +1,9 @@
+{
+  "case_id": "tool_failure_and_reflection",
+  "scenario": "reflection",
+  "prompt": "诊断耳机销量下降，并确保每个事实都有证据。",
+  "product_id": "wireless-headphones",
+  "expected_status": "awaiting_approval",
+  "required_text": ["支付订单"],
+  "forbidden_text": []
+}

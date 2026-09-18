@@ -6,4 +6,8 @@ __pycache__/
 .ruff_cache/
 .mypy_cache/
 /data/
-
+evals/reports/*.json
+!evals/reports/.gitkeep
+/flux/
+flux/.local
+flux/changes

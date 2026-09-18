@@ -19,12 +19,12 @@ logger = logging.getLogger(__name__)
 
 
 class RabbitTaskQueue:
-    exchange_name = "backend-agent.tasks.v1"
+    exchange_name = "e-commerce-agent.tasks.v1"
     routing_key = "agent.run"
-    queue_name = "backend-agent.tasks.v1"
-    retry_exchange_name = "backend-agent.retry.v1"
-    dead_exchange_name = "backend-agent.dead.v1"
-    dead_queue_name = "backend-agent.dead.v1"
+    queue_name = "e-commerce-agent.tasks.v1"
+    retry_exchange_name = "e-commerce-agent.retry.v1"
+    dead_exchange_name = "e-commerce-agent.dead.v1"
+    dead_queue_name = "e-commerce-agent.dead.v1"
     retry_delays_ms = (1_000, 5_000, 20_000)
 
     def __init__(
@@ -133,7 +133,11 @@ class RabbitTaskQueue:
             content_type="application/json",
             delivery_mode=DeliveryMode.PERSISTENT,
             correlation_id=payload.task_id,
-            headers={"attempt": payload.attempt},
+            headers={
+                "attempt": payload.attempt,
+                "trace_id": payload.trace_id,
+                "resume_kind": payload.resume_kind or "",
+            },
         )
 
     @staticmethod

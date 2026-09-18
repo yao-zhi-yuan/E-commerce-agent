@@ -10,6 +10,7 @@ COPY src ./src
 RUN pip install --no-cache-dir .
 
 COPY knowledge ./knowledge
+COPY skills ./skills
 RUN useradd --create-home --uid 10001 appuser \
     && mkdir -p /data \
     && chown -R appuser:appuser /app /data

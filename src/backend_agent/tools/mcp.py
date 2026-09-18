@@ -60,29 +60,30 @@ class McpRemoteTool(AgentTool):
 
 
 def build_mcp_tools(client: McpToolClient) -> list[McpRemoteTool]:
-    service_parameters: dict[str, object] = {
+    product_parameters: dict[str, object] = {
         "type": "object",
         "properties": {
-            "service": {
+            "merchant_id": {
                 "type": "string",
-                "description": "服务名，例如 order-service",
-            }
+                "description": "认证上下文中的模拟商家 ID",
+            },
+            "product_id": {"type": "string", "description": "模拟商品 ID"},
+            "sections": {
+                "type": "array",
+                "items": {
+                    "type": "string",
+                    "enum": ["product", "inventory", "price", "reviews", "competitors"],
+                },
+            },
         },
-        "required": ["service"],
+        "required": ["merchant_id", "product_id"],
         "additionalProperties": False,
     }
     return [
         McpRemoteTool(
             client,
-            name="get_service_health",
-            description="通过 MCP Server 查询服务健康状态和关键依赖。",
-            parameters=service_parameters,
-        ),
-        McpRemoteTool(
-            client,
-            name="get_incident_runbook",
-            description="通过 MCP Server 获取服务故障处理手册。",
-            parameters=service_parameters,
+            name="get_product_context",
+            description="通过 MCP Server 查询商品详情、库存、价格、评论与竞品证据。",
+            parameters=product_parameters,
         ),
     ]
-
